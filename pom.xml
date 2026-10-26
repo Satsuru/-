@@ -10,48 +10,33 @@
         <relativePath/>
     </parent>
     <groupId>by.bsuir.iisik</groupId>
-    <artifactId>hotel-platform-lab3</artifactId>
+    <artifactId>hotel-platform</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>hotel-platform-lab3</name>
-    <description>Лабораторная 3: сервисы бронирования отелей, свои схемы, GraphQL на чтение</description>
+    <packaging>pom</packaging>
+    <name>hotel-platform</name>
+    <description>Платформа бронирования отелей: отдельные приложения сервисов и GraphQL-шлюз</description>
+    <modules>
+        <module>contracts</module>
+        <module>gateway</module>
+        <module>identity</module>
+        <module>catalog</module>
+        <module>pricing</module>
+        <module>booking</module>
+        <module>payment</module>
+        <module>assistant</module>
+        <module>notification</module>
+        <module>analytics</module>
+    </modules>
     <properties>
         <java.version>17</java.version>
     </properties>
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-graphql</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jdbc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.graphql</groupId>
-            <artifactId>spring-graphql-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>by.bsuir.iisik</groupId>
+                <artifactId>platform-contracts</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>

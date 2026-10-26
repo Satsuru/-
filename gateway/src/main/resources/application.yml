@@ -1,0 +1,10 @@
+# Запуск шлюза: mvn -pl gateway spring-boot:run
+# GraphiQL: http://localhost:8088/graphiql
+# Гость из начальных данных: X-User-Id: 1 или пароль guest у guest@hotel.local
+server:
+  port: 8088
+
+spring:
+  graphql:
+    graphiql:
+      enabled: true

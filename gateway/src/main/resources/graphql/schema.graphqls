@@ -1,0 +1,192 @@
+type Query {
+    me: User!
+    hotel(id: ID!): Hotel
+    searchHotels(input: SearchInput!): [RoomOffer!]!
+    quoteStay(input: QuoteInput!): Quote!
+    myBookings(filter: BookingFilter): [Booking!]!
+    booking(id: ID!): Booking
+    myBookingStats: BookingStats!
+    myNotifications: [Notification!]!
+    occupancyAndRevenue(input: PeriodInput!): OccupancyRevenue!
+}
+
+type Mutation {
+    register(input: RegisterInput!): AuthPayload!
+    login(input: LoginInput!): AuthPayload!
+    createBooking(input: CreateBookingInput!): Booking!
+    payBooking(input: PayInput!): Booking!
+    cancelBooking(input: CancelInput!): Booking!
+    askAssistant(input: AskInput!): Dialog!
+}
+
+enum OfferSort { PRICE_ASC PRICE_DESC RATING_DESC }
+enum BookingSort { DATE_ASC DATE_DESC }
+
+input SearchInput {
+    city: String!
+    checkIn: String!
+    checkOut: String!
+    guests: Int!
+    minStars: Float
+    sort: OfferSort
+}
+
+input QuoteInput {
+    roomId: ID!
+    checkIn: String!
+    checkOut: String!
+    guests: Int!
+}
+
+input PeriodInput {
+    hotelId: ID!
+    from: String!
+    to: String!
+}
+
+input BookingFilter {
+    status: String
+    sort: BookingSort
+}
+
+input RegisterInput {
+    email: String!
+    password: String!
+    fullName: String!
+    phone: String
+}
+
+input LoginInput {
+    email: String!
+    password: String!
+}
+
+input CreateBookingInput {
+    roomId: ID!
+    checkIn: String!
+    checkOut: String!
+    guests: Int!
+}
+
+input PayInput {
+    bookingId: ID!
+    method: String!
+}
+
+input CancelInput {
+    bookingId: ID!
+}
+
+input AskInput {
+    text: String!
+    dialogId: ID
+}
+
+type AuthPayload {
+    token: String!
+    user: User!
+}
+
+type User {
+    id: ID!
+    email: String!
+    fullName: String!
+    phone: String
+    roles: [String!]!
+}
+
+type Hotel {
+    id: ID!
+    name: String!
+    city: String!
+    address: String
+    starRating: Float!
+}
+
+type RoomOffer {
+    roomId: ID!
+    hotel: Hotel!
+    roomType: String!
+    capacity: Int!
+    basePrice: Float!
+    nightlyPrice: Float!
+    available: Boolean!
+}
+
+type Quote {
+    roomId: ID!
+    checkIn: String!
+    checkOut: String!
+    guests: Int!
+    basePrice: Float!
+    total: Float!
+    multipliers: Multipliers!
+    explanation: String!
+}
+
+type Multipliers {
+    occupancy: Float!
+    season: Float!
+    weekday: Float!
+    demand: Float!
+    guest: Float!
+}
+
+type Booking {
+    id: ID!
+    roomId: ID!
+    hotelId: ID!
+    checkIn: String!
+    checkOut: String!
+    guests: Int!
+    status: String!
+    totalPrice: Float!
+    holdUntil: String
+    snapshot: PriceSnapshot
+}
+
+type PriceSnapshot {
+    basePrice: Float!
+    occupancyMultiplier: Float!
+    seasonMultiplier: Float!
+    weekdayMultiplier: Float!
+    demandMultiplier: Float!
+    guestMultiplier: Float!
+    calculatedPrice: Float!
+}
+
+type BookingStats {
+    total: Int!
+    created: Int!
+    paid: Int!
+    cancelled: Int!
+    paidSum: Float!
+}
+
+type Notification {
+    id: ID!
+    kind: String!
+    body: String!
+    status: String!
+    createdAt: String!
+}
+
+type Dialog {
+    id: ID!
+    status: String!
+    messages: [Message!]!
+}
+
+type Message {
+    id: ID!
+    author: String!
+    body: String!
+}
+
+type OccupancyRevenue {
+    hotelId: ID!
+    occupancy: Float!
+    revenue: Float!
+    periodFrom: String!
+    periodTo: String!
+}
