@@ -37,6 +37,10 @@ public class CatalogService implements ApplicationRunner {
         return repository.isFree(roomId, checkIn, checkOut);
     }
 
+    public int activeRooms(long hotelId) {
+        return repository.activeRooms(hotelId);
+    }
+
     public void hold(long roomId, LocalDate checkIn, LocalDate checkOut, long bookingId) {
         repository.hold(roomId, checkIn, checkOut, bookingId);
     }

@@ -2,6 +2,7 @@ package by.bsuir.platform.catalog;
 
 import by.bsuir.platform.contracts.Api;
 import by.bsuir.platform.contracts.Failures;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -17,7 +18,7 @@ class CatalogRepository {
 
     private final JdbcTemplate jdbc;
 
-    CatalogRepository(JdbcTemplate jdbc) {
+    CatalogRepository(@Qualifier("catalogJdbc") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -100,6 +101,14 @@ class CatalogRepository {
         Integer count = jdbc.queryForObject(
                 "select count(*) from catalog.room_nights where booking_id = ? and state = 'HELD'",
                 Integer.class, bookingId
+        );
+        return count == null ? 0 : count;
+    }
+
+    int activeRooms(long hotelId) {
+        Integer count = jdbc.queryForObject(
+                "select count(*) from catalog.rooms where hotel_id = ? and active = true",
+                Integer.class, hotelId
         );
         return count == null ? 0 : count;
     }

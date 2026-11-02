@@ -1,11 +1,13 @@
 package by.bsuir.platform.booking;
 
 import by.bsuir.platform.contracts.Api;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,7 +16,7 @@ class BookingRepository {
 
     private final JdbcTemplate jdbc;
 
-    BookingRepository(JdbcTemplate jdbc) {
+    BookingRepository(@Qualifier("bookingJdbc") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -39,6 +41,65 @@ class BookingRepository {
         return listMine(userId, null).stream().filter(row -> row.id().equals(bookingId)).findFirst();
     }
 
+    Optional<Api.BookingView> find(long bookingId) {
+        return jdbc.query(
+                """
+                select b.id, b.room_id, b.hotel_id, b.check_in, b.check_out, b.guests, b.status,
+                       b.total_price, b.hold_until,
+                       s.base_price, s.occupancy_multiplier, s.season_multiplier, s.weekday_multiplier,
+                       s.demand_multiplier, s.guest_multiplier, s.calculated_price
+                from booking.bookings b
+                left join booking.price_snapshots s on s.booking_id = b.id
+                where b.id = ?
+                """,
+                (rs, n) -> map(rs),
+                bookingId
+        ).stream().findFirst();
+    }
+
+    boolean holdExpired(long bookingId, LocalDateTime now) {
+        List<java.sql.Timestamp> rows = jdbc.query(
+                "select hold_until from booking.bookings where id = ?",
+                (rs, n) -> rs.getTimestamp("hold_until"),
+                bookingId
+        );
+        return !rows.isEmpty() && rows.get(0) != null && rows.get(0).toLocalDateTime().isBefore(now);
+    }
+
+    List<Long> expireOverdue(LocalDateTime now) {
+        List<Long> ids = jdbc.query(
+                """
+                select id from booking.bookings
+                where status = 'CREATED' and hold_until is not null and hold_until < ?
+                """,
+                (rs, n) -> rs.getLong("id"),
+                java.sql.Timestamp.valueOf(now)
+        );
+        for (Long id : ids) {
+            setStatus(id, "CANCELLED");
+        }
+        return ids;
+    }
+
+    Api.BookingStats stats(long userId) {
+        int created = count(userId, "CREATED");
+        int paid = count(userId, "PAID");
+        int cancelled = count(userId, "CANCELLED");
+        Double sum = jdbc.queryForObject(
+                "select coalesce(sum(total_price), 0) from booking.bookings where user_id = ? and status = 'PAID'",
+                Double.class, userId
+        );
+        return new Api.BookingStats(created + paid + cancelled, created, paid, cancelled, sum == null ? 0 : sum);
+    }
+
+    private int count(long userId, String status) {
+        Integer count = jdbc.queryForObject(
+                "select count(*) from booking.bookings where user_id = ? and status = ?",
+                Integer.class, userId, status
+        );
+        return count == null ? 0 : count;
+    }
+
     String status(long bookingId, long userId) {
         List<String> rows = jdbc.query(
                 "select status from booking.bookings where id = ? and user_id = ?",
@@ -48,14 +109,15 @@ class BookingRepository {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    long insert(long userId, long roomId, long hotelId, LocalDate checkIn, LocalDate checkOut, int guests, Api.PriceQuote quote, BigDecimal basePrice) {
+    long insert(long userId, long roomId, long hotelId, LocalDate checkIn, LocalDate checkOut, int guests,
+                Api.PriceQuote quote, BigDecimal basePrice, LocalDateTime holdUntil) {
         Long id = jdbc.queryForObject("select coalesce(max(id), 0) + 1 from booking.bookings", Long.class);
         jdbc.update("""
                 insert into booking.bookings
                 (id, user_id, room_id, hotel_id, check_in, check_out, guests, status, total_price, hold_until)
                 values (?, ?, ?, ?, ?, ?, ?, 'CREATED', ?, ?)
                 """, id, userId, roomId, hotelId, checkIn, checkOut, guests, quote.total(),
-                java.sql.Timestamp.valueOf(checkIn.minusDays(1).atTime(18, 0)));
+                java.sql.Timestamp.valueOf(holdUntil));
         Long snapshotId = jdbc.queryForObject("select coalesce(max(id), 0) + 1 from booking.price_snapshots", Long.class);
         jdbc.update("""
                 insert into booking.price_snapshots
@@ -69,6 +131,13 @@ class BookingRepository {
 
     void setStatus(long bookingId, String status) {
         jdbc.update("update booking.bookings set status = ?, hold_until = null where id = ?", status, bookingId);
+    }
+
+    void cancelIfCreated(long bookingId) {
+        jdbc.update(
+                "update booking.bookings set status = 'CANCELLED', hold_until = null where id = ? and status = 'CREATED'",
+                bookingId
+        );
     }
 
     int countBookings() {

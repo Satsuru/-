@@ -1,12 +1,16 @@
 package by.bsuir.platform.assistant;
 
+import by.bsuir.platform.contracts.Api;
 import by.bsuir.platform.contracts.Failures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 public class AssistantService implements ApplicationRunner {
@@ -14,11 +18,11 @@ public class AssistantService implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(AssistantService.class);
     private final JdbcTemplate jdbc;
 
-    public AssistantService(JdbcTemplate jdbc) {
+    public AssistantService(@Qualifier("assistantJdbc") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
-    public long ask(long userId, Long dialogId, String guestText, String answer, boolean escalated) {
+    public Api.DialogView ask(long userId, Long dialogId, String guestText, String answer, boolean escalated) {
         long id;
         if (dialogId == null) {
             id = next("assistant.dialogs");
@@ -39,7 +43,17 @@ public class AssistantService implements ApplicationRunner {
         }
         add(id, "GUEST", guestText);
         add(id, "ASSISTANT", answer);
-        return id;
+        return load(id);
+    }
+
+    private Api.DialogView load(long id) {
+        String status = jdbc.queryForObject("select status from assistant.dialogs where id = ?", String.class, id);
+        List<Api.MessageView> messages = jdbc.query(
+                "select id, author, body from assistant.messages where dialog_id = ? order by id",
+                (rs, n) -> new Api.MessageView(rs.getLong("id"), rs.getString("author"), rs.getString("body")),
+                id
+        );
+        return new Api.DialogView(id, status, messages);
     }
 
     private void add(long dialogId, String author, String body) {

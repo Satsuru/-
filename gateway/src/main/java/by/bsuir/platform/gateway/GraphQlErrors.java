@@ -22,6 +22,9 @@ public class GraphQlErrors extends DataFetcherExceptionResolverAdapter {
         if (ex instanceof Failures.UnauthorizedException) {
             return error(ex, env, ErrorType.UNAUTHORIZED);
         }
+        if (ex instanceof Failures.ForbiddenException) {
+            return error(ex, env, ErrorType.FORBIDDEN);
+        }
         return null;
     }
 

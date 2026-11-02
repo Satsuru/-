@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -24,30 +27,59 @@ public class BookingService implements ApplicationRunner {
         this.repository = repository;
     }
 
-    public List<Api.BookingView> listMine(long userId, String status) {
-        return repository.listMine(userId, blank(status));
+    public List<Api.BookingView> listMine(long userId, String status, Api.BookingSort sort) {
+        List<Api.BookingView> rows = new ArrayList<>(repository.listMine(userId, blank(status)));
+        if (sort == Api.BookingSort.DATE_DESC) {
+            Collections.reverse(rows);
+        }
+        return rows;
     }
 
     public Api.BookingView get(long bookingId, long userId) {
         return repository.get(bookingId, userId).orElse(null);
     }
 
-    public long create(long userId, long roomId, long hotelId, LocalDate checkIn, LocalDate checkOut,
-                       int guests, BigDecimal basePrice, Api.PriceQuote quote) {
-        Dates.requireStay(checkIn, checkOut, guests);
-        return repository.insert(userId, roomId, hotelId, checkIn, checkOut, guests, quote, basePrice);
+    public Api.BookingStats stats(long userId) {
+        return repository.stats(userId);
     }
 
-    public void pay(long userId, long bookingId) {
+    public Api.BookingView create(long userId, long roomId, long hotelId, LocalDate checkIn, LocalDate checkOut,
+                                  int guests, BigDecimal basePrice, Api.PriceQuote quote) {
+        Dates.requireStay(checkIn, checkOut, guests);
+        long id = repository.insert(userId, roomId, hotelId, checkIn, checkOut, guests, quote, basePrice,
+                LocalDateTime.now().plusHours(48));
+        return repository.find(id).orElseThrow(() -> new Failures.NotFoundException("Бронь не найдена"));
+    }
+
+    public Api.BookingView pay(long userId, long bookingId) {
         String status = require(bookingId, userId);
+        if ("CREATED".equals(status) && repository.holdExpired(bookingId, LocalDateTime.now())) {
+            repository.setStatus(bookingId, "CANCELLED");
+            throw new Failures.HoldExpiredException(bookingId);
+        }
         BookingRules.checkPay(status);
         repository.setStatus(bookingId, "PAID");
+        return repository.get(bookingId, userId).orElseThrow(() -> new Failures.NotFoundException("Бронь не найдена"));
     }
 
-    public void cancel(long userId, long bookingId) {
-        String status = require(bookingId, userId);
-        BookingRules.checkCancel(status);
+    public Api.BookingView cancel(long actorId, boolean staff, long bookingId) {
+        Api.BookingView row = staff
+                ? repository.find(bookingId).orElse(null)
+                : repository.get(bookingId, actorId).orElse(null);
+        if (row == null) {
+            throw new Failures.NotFoundException("Бронь не найдена");
+        }
+        BookingRules.checkCancel(row.status());
         repository.setStatus(bookingId, "CANCELLED");
+        return repository.find(bookingId).orElseThrow(() -> new Failures.NotFoundException("Бронь не найдена"));
+    }
+
+    public void abort(long bookingId) {
+        repository.cancelIfCreated(bookingId);
+    }
+
+    public List<Long> expireOverdue() {
+        return repository.expireOverdue(LocalDateTime.now());
     }
 
     private String require(long bookingId, long userId) {

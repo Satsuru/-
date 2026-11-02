@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Клиентские контракты шлюза. Сейчас их реализуют заглушки.
- * Классы сервисов с базой эти интерфейсы не реализуют.
+ * Клиентские контракты шлюза. Их реализуют адаптеры.
+ * Классы сервисов с базой эти интерфейсы не реализуют: адаптер только вызывает сервис.
  */
 public final class Clients {
 
@@ -21,7 +21,9 @@ public final class Clients {
 
         Api.AuthPayload login(String email, String password);
 
-        Long userIdByToken(String token);
+        Api.UserView userByToken(String token);
+
+        void logout(String token);
     }
 
     public interface CatalogClient {
@@ -32,6 +34,8 @@ public final class Clients {
         Optional<Api.RoomCard> getRoom(long roomId, LocalDate checkIn, LocalDate checkOut);
 
         boolean isFree(long roomId, LocalDate checkIn, LocalDate checkOut);
+
+        int activeRooms(long hotelId);
 
         void hold(long roomId, LocalDate checkIn, LocalDate checkOut, long bookingId);
 
@@ -58,11 +62,15 @@ public final class Clients {
 
         Api.BookingStats stats(long userId);
 
-        Api.BookingView create(long userId, long roomId, long hotelId, LocalDate checkIn, LocalDate checkOut, int guests, Api.PriceQuote quote);
+        Api.BookingView create(long userId, long roomId, long hotelId, LocalDate checkIn, LocalDate checkOut, int guests, BigDecimal basePrice, Api.PriceQuote quote);
 
         Api.BookingView pay(long userId, long bookingId);
 
-        Api.BookingView cancel(long userId, long bookingId);
+        Api.BookingView cancel(long actorId, boolean staff, long bookingId);
+
+        void abort(long bookingId);
+
+        List<Long> expireOverdue();
     }
 
     public interface PaymentClient {
@@ -83,5 +91,7 @@ public final class Clients {
         Api.OccupancyRevenueView occupancyAndRevenue(long hotelId, LocalDate from, LocalDate to);
 
         void addSale(long hotelId, String status, BigDecimal amount, LocalDate day);
+
+        void recordSoldNights(long hotelId, LocalDate checkIn, LocalDate checkOut, int totalRooms);
     }
 }

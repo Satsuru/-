@@ -22,4 +22,23 @@ public final class Failures {
             super(message);
         }
     }
+
+    public static class ForbiddenException extends RuntimeException {
+        public ForbiddenException(String message) {
+            super(message);
+        }
+    }
+
+    public static class HoldExpiredException extends BadRequestException {
+        private final long bookingId;
+
+        public HoldExpiredException(long bookingId) {
+            super("Срок оплаты истёк");
+            this.bookingId = bookingId;
+        }
+
+        public long bookingId() {
+            return bookingId;
+        }
+    }
 }

@@ -16,6 +16,47 @@
             <artifactId>platform-contracts</artifactId>
         </dependency>
         <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-catalog</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-pricing</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-booking</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-payment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-assistant</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-notification</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-analytics</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>by.bsuir.iisik</groupId>
+            <artifactId>platform-identity</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

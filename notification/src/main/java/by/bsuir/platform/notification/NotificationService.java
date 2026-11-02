@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +17,7 @@ public class NotificationService implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
     private final JdbcTemplate jdbc;
 
-    public NotificationService(JdbcTemplate jdbc) {
+    public NotificationService(@Qualifier("notificationJdbc") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 

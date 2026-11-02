@@ -73,6 +73,11 @@ public class GraphqlApi {
     }
 
     @MutationMapping
+    public boolean logout() {
+        return api.logout();
+    }
+
+    @MutationMapping
     public Api.BookingView createBooking(@Argument Api.CreateBookingInput input) {
         return api.createBooking(input);
     }

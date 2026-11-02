@@ -60,6 +60,7 @@ public class PlatformApi {
     }
 
     public List<Api.RoomOfferView> searchHotels(Api.SearchInput input) {
+        sweep();
         Stay stay = stay(input.checkIn(), input.checkOut(), input.guests());
         if (input.city() == null || input.city().isBlank()) {
             throw new Failures.BadRequestException("Укажите город");
@@ -80,6 +81,7 @@ public class PlatformApi {
     }
 
     public Api.QuoteView quoteStay(Api.QuoteInput input) {
+        sweep();
         if (input.roomId() == null) {
             throw new Failures.BadRequestException("Укажите номер");
         }
@@ -97,7 +99,14 @@ public class PlatformApi {
         return quote(room, stay, price);
     }
 
+    public boolean logout() {
+        CurrentUser.require();
+        identity.logout(CurrentUser.token());
+        return true;
+    }
+
     public Api.BookingView createBooking(Api.CreateBookingInput input) {
+        sweep();
         long userId = CurrentUser.require();
         if (input.roomId() == null) {
             throw new Failures.BadRequestException("Укажите номер");
@@ -108,13 +117,16 @@ public class PlatformApi {
         if (stay.guests() > room.capacity()) {
             throw new Failures.BadRequestException("В номере недостаточно мест");
         }
-        if (!catalog.isFree(room.roomId(), stay.checkIn(), stay.checkOut())) {
-            throw new Failures.BadRequestException("Номер занят на эти даты");
-        }
         Api.PriceQuote price = pricing.calculate(room.hotelId(), room.basePrice(), room.occupancyRatio(),
                 stay.checkIn(), stay.checkOut(), stay.guests());
-        Api.BookingView created = booking.create(userId, room.roomId(), room.hotelId(), stay.checkIn(), stay.checkOut(), stay.guests(), price);
-        catalog.hold(room.roomId(), stay.checkIn(), stay.checkOut(), created.id());
+        Api.BookingView created = booking.create(userId, room.roomId(), room.hotelId(), stay.checkIn(), stay.checkOut(),
+                stay.guests(), room.basePrice(), price);
+        try {
+            catalog.hold(room.roomId(), stay.checkIn(), stay.checkOut(), created.id());
+        } catch (RuntimeException ex) {
+            booking.abort(created.id());
+            throw ex;
+        }
         notification.add(userId, "BOOKING_CREATED", "Бронь " + created.id() + " создана, номер удерживается до оплаты");
         analytics.addSale(room.hotelId(), "CREATED", price.total(), stay.checkIn());
         return created;
@@ -128,11 +140,19 @@ public class PlatformApi {
         if (input.method() == null || input.method().isBlank()) {
             throw new Failures.BadRequestException("Укажите способ оплаты");
         }
-        Api.BookingView paid = booking.pay(userId, input.bookingId());
+        Api.BookingView paid;
+        try {
+            paid = booking.pay(userId, input.bookingId());
+        } catch (Failures.HoldExpiredException ex) {
+            catalog.release(ex.bookingId());
+            throw ex;
+        }
         payment.complete(paid.id(), userId, java.math.BigDecimal.valueOf(paid.totalPrice()), input.method());
         catalog.confirmSold(paid.id());
         notification.add(userId, "PAYMENT_COMPLETED", "Бронь " + paid.id() + " оплачена");
-        analytics.addSale(paid.hotelId(), "PAID", java.math.BigDecimal.valueOf(paid.totalPrice()), LocalDate.parse(paid.checkIn()));
+        LocalDate checkIn = LocalDate.parse(paid.checkIn());
+        analytics.addSale(paid.hotelId(), "PAID", java.math.BigDecimal.valueOf(paid.totalPrice()), checkIn);
+        analytics.recordSoldNights(paid.hotelId(), checkIn, LocalDate.parse(paid.checkOut()), catalog.activeRooms(paid.hotelId()));
         return paid;
     }
 
@@ -141,7 +161,8 @@ public class PlatformApi {
         if (input.bookingId() == null) {
             throw new Failures.BadRequestException("Укажите бронь");
         }
-        Api.BookingView cancelled = booking.cancel(userId, input.bookingId());
+        boolean staff = CurrentUser.hasRole("WORKER") || CurrentUser.hasRole("ADMIN");
+        Api.BookingView cancelled = booking.cancel(userId, staff, input.bookingId());
         catalog.release(cancelled.id());
         notification.add(userId, "BOOKING_CANCELLED", "Бронь " + cancelled.id() + " отменена, номер снова свободен");
         return cancelled;
@@ -165,12 +186,14 @@ public class PlatformApi {
     }
 
     public List<Api.BookingView> myBookings(Api.BookingFilter filter) {
+        sweep();
         String status = filter == null ? null : filter.status();
         Api.BookingSort sort = filter == null ? null : filter.sort();
         return booking.listMine(CurrentUser.require(), status, sort);
     }
 
     public Api.BookingView booking(long bookingId) {
+        sweep();
         return booking.get(bookingId, CurrentUser.require()).orElse(null);
     }
 
@@ -183,6 +206,10 @@ public class PlatformApi {
     }
 
     public Api.OccupancyRevenueView occupancyAndRevenue(Api.PeriodInput input) {
+        CurrentUser.require();
+        if (!CurrentUser.hasRole("ADMIN")) {
+            throw new Failures.ForbiddenException("Загрузка и выручка доступны администратору");
+        }
         if (input.hotelId() == null) {
             throw new Failures.BadRequestException("Укажите отель");
         }
@@ -195,6 +222,12 @@ public class PlatformApi {
             throw new Failures.NotFoundException("Отель не найден");
         }
         return analytics.occupancyAndRevenue(input.hotelId(), from, to);
+    }
+
+    private void sweep() {
+        for (Long id : booking.expireOverdue()) {
+            catalog.release(id);
+        }
     }
 
     private Api.RoomOfferView offer(Api.RoomCard room, Stay stay) {

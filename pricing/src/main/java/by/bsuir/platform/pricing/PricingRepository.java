@@ -1,6 +1,7 @@
 package by.bsuir.platform.pricing;
 
 import by.bsuir.platform.contracts.PriceMath;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -14,7 +15,7 @@ class PricingRepository {
 
     private final JdbcTemplate jdbc;
 
-    PricingRepository(JdbcTemplate jdbc) {
+    PricingRepository(@Qualifier("pricingJdbc") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 

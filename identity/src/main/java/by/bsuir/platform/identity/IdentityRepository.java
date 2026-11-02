@@ -2,6 +2,7 @@ package by.bsuir.platform.identity;
 
 import by.bsuir.platform.contracts.Api;
 import by.bsuir.platform.contracts.Failures;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -12,8 +13,11 @@ class IdentityRepository {
 
     private final JdbcTemplate jdbc;
 
-    IdentityRepository(JdbcTemplate jdbc) {
+    IdentityRepository(@Qualifier("identityJdbc") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    record Credential(long id, String hash) {
     }
 
     Api.UserView find(long userId) {
@@ -34,13 +38,25 @@ class IdentityRepository {
         return new Api.UserView(user.id(), user.email(), user.fullName(), user.phone(), roles);
     }
 
-    Long findByEmail(String email, String password) {
-        List<Long> ids = jdbc.query(
-                "select id from identity.users where lower(email) = lower(?) and password_hash = ? and active = true",
-                (rs, n) -> rs.getLong("id"),
-                email, password
+    Credential credential(String email) {
+        List<Credential> rows = jdbc.query(
+                "select id, password_hash from identity.users where lower(email) = lower(?) and active = true",
+                (rs, n) -> new Credential(rs.getLong("id"), rs.getString("password_hash")),
+                email
         );
-        return ids.isEmpty() ? null : ids.get(0);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    void hashPlainPasswords(java.util.function.Function<String, String> encode) {
+        List<Credential> rows = jdbc.query(
+                "select id, password_hash from identity.users",
+                (rs, n) -> new Credential(rs.getLong("id"), rs.getString("password_hash"))
+        );
+        for (Credential row : rows) {
+            if (row.hash() != null && !row.hash().startsWith("$2")) {
+                jdbc.update("update identity.users set password_hash = ? where id = ?", encode.apply(row.hash()), row.id());
+            }
+        }
     }
 
     boolean emailTaken(String email) {
@@ -59,11 +75,6 @@ class IdentityRepository {
         Long roleId = jdbc.queryForObject("select coalesce(max(id), 0) + 1 from identity.user_roles", Long.class);
         jdbc.update("insert into identity.user_roles (id, user_id, role_code) values (?, ?, 'GUEST')", roleId, id);
         return id;
-    }
-
-    void saveToken(String token, long userId) {
-        jdbc.update("delete from identity.access_tokens where token = ?", token);
-        jdbc.update("insert into identity.access_tokens (token, user_id) values (?, ?)", token, userId);
     }
 
     int countUsers() {
