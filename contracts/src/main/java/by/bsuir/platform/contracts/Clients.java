@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Клиентские контракты шлюза. Их реализуют адаптеры.
- * Классы сервисов с базой эти интерфейсы не реализуют: адаптер только вызывает сервис.
+ * Клиентские контракты шлюза. Их реализуют gRPC-адаптеры.
+ * Классы сервисов с базой эти интерфейсы не реализуют.
  */
 public final class Clients {
 
@@ -62,25 +62,17 @@ public final class Clients {
 
         Api.BookingStats stats(long userId);
 
-        Api.BookingView create(long userId, long roomId, long hotelId, LocalDate checkIn, LocalDate checkOut, int guests, BigDecimal basePrice, Api.PriceQuote quote);
+        Api.BookingView create(long userId, long roomId, LocalDate checkIn, LocalDate checkOut, int guests);
 
-        Api.BookingView pay(long userId, long bookingId);
+        Api.BookingView pay(long userId, long bookingId, String method);
 
         Api.BookingView cancel(long actorId, boolean staff, long bookingId);
 
-        void abort(long bookingId);
-
-        List<Long> expireOverdue();
-    }
-
-    public interface PaymentClient {
-        void complete(long bookingId, long userId, BigDecimal amount, String method);
+        void sweep();
     }
 
     public interface NotificationClient {
         List<Api.NotificationView> listMine(long userId);
-
-        void add(long userId, String kind, String body);
     }
 
     public interface AssistantClient {
@@ -89,9 +81,5 @@ public final class Clients {
 
     public interface AnalyticsClient {
         Api.OccupancyRevenueView occupancyAndRevenue(long hotelId, LocalDate from, LocalDate to);
-
-        void addSale(long hotelId, String status, BigDecimal amount, LocalDate day);
-
-        void recordSoldNights(long hotelId, LocalDate checkIn, LocalDate checkOut, int totalRooms);
     }
 }

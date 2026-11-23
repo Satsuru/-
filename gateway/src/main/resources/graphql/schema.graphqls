@@ -1,3 +1,5 @@
+# Поиск и расчёт цены доступны без входа. Остальные Query требуют сессию.
+# occupancyAndRevenue дополнительно требует роль ADMIN.
 type Query {
     me: User!
     hotel(id: ID!): Hotel
@@ -10,6 +12,7 @@ type Query {
     occupancyAndRevenue(input: PeriodInput!): OccupancyRevenue!
 }
 
+# register и login открыты. Остальные Mutation требуют действующую сессию.
 type Mutation {
     register(input: RegisterInput!): AuthPayload!
     login(input: LoginInput!): AuthPayload!

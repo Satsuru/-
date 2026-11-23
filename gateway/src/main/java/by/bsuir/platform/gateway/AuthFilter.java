@@ -11,6 +11,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+/**
+ * Перед Query и Mutation читает Authorization: Bearer и спрашивает identity,
+ * жива ли сессия. Идентификатор из тела запроса и заголовок X-User-Id не используются.
+ */
 @Component
 public class AuthFilter extends OncePerRequestFilter {
 

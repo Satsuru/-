@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Map;
 
+/** Шлюз не проверяет пароль сам: регистрация, вход и проверка токена уходят в identity по HTTP. */
 @Component
 public class RestIdentityClient implements Clients.IdentityClient {
 

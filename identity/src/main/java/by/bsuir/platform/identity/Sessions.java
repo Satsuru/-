@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
+/** Активные сессии. Ключ живёт 2 часа, после этого Redis удаляет его сам. */
 @Component
 public class Sessions {
 

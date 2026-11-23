@@ -1,3 +1,5 @@
+-- Пароли здесь учебные. При старте IdentityService заменяет их хешем BCrypt.
+-- guest@hotel.local / guest, worker@hotel.local / worker, admin@hotel.local / admin.
 INSERT INTO identity.users (id, email, password_hash, full_name, phone, active) VALUES
     (1, 'guest@hotel.local', 'guest', 'Анна Гость', '+375291112233', TRUE),
     (2, 'worker@hotel.local', 'worker', 'Иван Сотрудник', NULL, TRUE),

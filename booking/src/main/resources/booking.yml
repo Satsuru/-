@@ -1,2 +1,30 @@
 server:
   port: 8084
+
+grpc:
+  server:
+    port: 9084
+
+services:
+  catalog:
+    host: 127.0.0.1
+    port: 9082
+  pricing:
+    host: 127.0.0.1
+    port: 9083
+  payment:
+    host: 127.0.0.1
+    port: 9085
+
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      missing-topics-fatal: false

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 
 import java.util.List;
 
+/** Резолвер только передаёт вызов в PlatformApi. Пароль, сессию и роли он не проверяет. */
 @Controller
 public class GraphqlApi {
 

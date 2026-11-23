@@ -1,5 +1,4 @@
-# Сначала сервис аутентификации: mvn -pl identity -am spring-boot:run
-# Затем шлюз: mvn -pl gateway -am spring-boot:run
+# Вся платформа: ./run.sh
 # GraphiQL: http://localhost:8088/graphiql
 # Вход: guest@hotel.local / guest, сотрудник worker@hotel.local / worker, администратор admin@hotel.local / admin
 server:
@@ -8,6 +7,26 @@ server:
 auth:
   service:
     url: http://127.0.0.1:8081
+
+services:
+  catalog:
+    host: 127.0.0.1
+    port: 9082
+  pricing:
+    host: 127.0.0.1
+    port: 9083
+  booking:
+    host: 127.0.0.1
+    port: 9084
+  assistant:
+    host: 127.0.0.1
+    port: 9086
+  notification:
+    host: 127.0.0.1
+    port: 9087
+  analytics:
+    host: 127.0.0.1
+    port: 9089
 
 spring:
   graphql:

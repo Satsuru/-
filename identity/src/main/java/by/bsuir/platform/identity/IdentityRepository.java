@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+// Работа с базой Identity: пользователи, хеши паролей и роли.
 @Repository
 class IdentityRepository {
 
@@ -29,6 +30,7 @@ class IdentityRepository {
         if (rows.isEmpty()) {
             throw new Failures.NotFoundException("Пользователь не найден");
         }
+        // Роль читается из своей таблицы, не из тела запроса клиента.
         List<String> roles = jdbc.query(
                 "select role_code from identity.user_roles where user_id = ? order by id",
                 (rs, n) -> rs.getString("role_code"),
@@ -73,6 +75,7 @@ class IdentityRepository {
         jdbc.update("insert into identity.users (id, email, password_hash, full_name, phone, active) values (?, ?, ?, ?, ?, true)",
                 id, email, password, fullName, phone);
         Long roleId = jdbc.queryForObject("select coalesce(max(id), 0) + 1 from identity.user_roles", Long.class);
+        // Новый пользователь всегда гость. Роль сотрудника и администратора регистрация не выдаёт.
         jdbc.update("insert into identity.user_roles (id, user_id, role_code) values (?, ?, 'GUEST')", roleId, id);
         return id;
     }

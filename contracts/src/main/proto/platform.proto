@@ -1,0 +1,256 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "by.bsuir.platform.contracts.grpc";
+option java_outer_classname = "PlatformProto";
+
+// Синхронные контракты между сервисами. Поля совпадают с операциями платформы.
+message Empty {}
+
+message Id {
+  int64 id = 1;
+}
+
+message Count {
+  int32 value = 1;
+}
+
+message BoolValue {
+  bool value = 1;
+}
+
+message HotelView {
+  bool found = 1;
+  int64 id = 2;
+  string name = 3;
+  string city = 4;
+  string address = 5;
+  double star_rating = 6;
+}
+
+message RoomCard {
+  bool found = 1;
+  int64 room_id = 2;
+  int64 hotel_id = 3;
+  string hotel_name = 4;
+  string city = 5;
+  string address = 6;
+  double star_rating = 7;
+  string room_type = 8;
+  int32 capacity = 9;
+  string base_price = 10;
+  string occupancy_ratio = 11;
+}
+
+message RoomCardList {
+  repeated RoomCard rooms = 1;
+}
+
+message SearchRequest {
+  string city = 1;
+  string check_in = 2;
+  string check_out = 3;
+  int32 guests = 4;
+  double min_stars = 5;
+  bool has_min_stars = 6;
+}
+
+message RoomStayRequest {
+  int64 room_id = 1;
+  string check_in = 2;
+  string check_out = 3;
+}
+
+message HoldRequest {
+  int64 room_id = 1;
+  string check_in = 2;
+  string check_out = 3;
+  int64 booking_id = 4;
+}
+
+message PriceRequest {
+  int64 hotel_id = 1;
+  string base_price = 2;
+  string occupancy_ratio = 3;
+  string check_in = 4;
+  string check_out = 5;
+  int32 guests = 6;
+}
+
+message PriceQuote {
+  string nightly = 1;
+  string total = 2;
+  string occupancy = 3;
+  string season = 4;
+  string weekday = 5;
+  string demand = 6;
+  string guest = 7;
+  string explanation = 8;
+}
+
+message SnapshotView {
+  bool present = 1;
+  double base_price = 2;
+  double occupancy = 3;
+  double season = 4;
+  double weekday = 5;
+  double demand = 6;
+  double guest = 7;
+  double calculated_price = 8;
+}
+
+message BookingView {
+  bool found = 1;
+  int64 id = 2;
+  int64 room_id = 3;
+  int64 hotel_id = 4;
+  string check_in = 5;
+  string check_out = 6;
+  int32 guests = 7;
+  string status = 8;
+  double total_price = 9;
+  string hold_until = 10;
+  SnapshotView snapshot = 11;
+}
+
+message BookingList {
+  repeated BookingView bookings = 1;
+}
+
+message ListBookingsRequest {
+  int64 user_id = 1;
+  string status = 2;
+  string sort = 3;
+}
+
+message GetBookingRequest {
+  int64 booking_id = 1;
+  int64 user_id = 2;
+}
+
+message UserRequest {
+  int64 user_id = 1;
+}
+
+message CreateBookingRequest {
+  int64 user_id = 1;
+  int64 room_id = 2;
+  string check_in = 3;
+  string check_out = 4;
+  int32 guests = 5;
+}
+
+message PayBookingRequest {
+  int64 user_id = 1;
+  int64 booking_id = 2;
+  string method = 3;
+}
+
+message CancelBookingRequest {
+  int64 actor_id = 1;
+  bool staff = 2;
+  int64 booking_id = 3;
+}
+
+message BookingStats {
+  int32 total = 1;
+  int32 created = 2;
+  int32 paid = 3;
+  int32 cancelled = 4;
+  double paid_sum = 5;
+}
+
+message PaymentRequest {
+  int64 booking_id = 1;
+  int64 user_id = 2;
+  string amount = 3;
+  string method = 4;
+}
+
+message NotificationView {
+  int64 id = 1;
+  string kind = 2;
+  string body = 3;
+  string status = 4;
+  string created_at = 5;
+}
+
+message NotificationList {
+  repeated NotificationView items = 1;
+}
+
+message AskRequest {
+  int64 user_id = 1;
+  int64 dialog_id = 2;
+  bool has_dialog = 3;
+  string guest_text = 4;
+  string answer = 5;
+  bool escalated = 6;
+}
+
+message MessageView {
+  int64 id = 1;
+  string author = 2;
+  string body = 3;
+}
+
+message DialogView {
+  int64 id = 1;
+  string status = 2;
+  repeated MessageView messages = 3;
+}
+
+message PeriodRequest {
+  int64 hotel_id = 1;
+  string from = 2;
+  string to = 3;
+}
+
+message OccupancyRevenue {
+  int64 hotel_id = 1;
+  double occupancy = 2;
+  double revenue = 3;
+  string period_from = 4;
+  string period_to = 5;
+}
+
+service CatalogApi {
+  rpc Hotel(Id) returns (HotelView);
+  rpc Search(SearchRequest) returns (RoomCardList);
+  rpc GetRoom(RoomStayRequest) returns (RoomCard);
+  rpc IsFree(RoomStayRequest) returns (BoolValue);
+  rpc ActiveRooms(Id) returns (Count);
+  rpc Hold(HoldRequest) returns (Empty);
+  rpc Release(Id) returns (Empty);
+  rpc ConfirmSold(Id) returns (Empty);
+}
+
+service PricingApi {
+  rpc Calculate(PriceRequest) returns (PriceQuote);
+}
+
+service BookingApi {
+  rpc ListMine(ListBookingsRequest) returns (BookingList);
+  rpc Get(GetBookingRequest) returns (BookingView);
+  rpc Stats(UserRequest) returns (BookingStats);
+  rpc Create(CreateBookingRequest) returns (BookingView);
+  rpc Pay(PayBookingRequest) returns (BookingView);
+  rpc Cancel(CancelBookingRequest) returns (BookingView);
+  rpc Sweep(Empty) returns (Empty);
+}
+
+service PaymentApi {
+  rpc Complete(PaymentRequest) returns (Empty);
+}
+
+service NotificationApi {
+  rpc ListMine(UserRequest) returns (NotificationList);
+}
+
+service AssistantApi {
+  rpc Ask(AskRequest) returns (DialogView);
+}
+
+service AnalyticsApi {
+  rpc OccupancyAndRevenue(PeriodRequest) returns (OccupancyRevenue);
+}

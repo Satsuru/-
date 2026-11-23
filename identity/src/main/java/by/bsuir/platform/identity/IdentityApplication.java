@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Map;
 
+// Точка запуска сервиса авторизации и настройка хеширования паролей BCrypt.
 @SpringBootApplication(exclude = {
         DataSourceAutoConfiguration.class,
         DataSourceTransactionManagerAutoConfiguration.class,
@@ -19,6 +20,7 @@ import java.util.Map;
 public class IdentityApplication {
 
     static {
+        // Redis поднимается вместе с сервисом аутентификации, до приёма запросов.
         EmbeddedRedis.ensure();
     }
 

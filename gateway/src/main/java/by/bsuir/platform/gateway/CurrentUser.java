@@ -3,6 +3,7 @@ package by.bsuir.platform.gateway;
 import by.bsuir.platform.contracts.Api;
 import by.bsuir.platform.contracts.Failures;
 
+/** Пользователь текущего запроса. Сюда его кладёт AuthFilter после успешной проверки JWT и сессии. */
 public final class CurrentUser {
 
     private static final ThreadLocal<Api.UserView> USER = new ThreadLocal<>();

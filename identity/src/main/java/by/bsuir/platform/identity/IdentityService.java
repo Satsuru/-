@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
+// Основная логика авторизации: регистрация, вход, JWT и проверка сессии Redis.
 @Service
 @DependsOn("identitySchema")
 public class IdentityService implements ApplicationRunner {
@@ -30,6 +31,7 @@ public class IdentityService implements ApplicationRunner {
         this.sessions = sessions;
     }
 
+    /** Учебные пароли из data.sql при старте заменяются хешем BCrypt. */
     @PostConstruct
     void hashSeedPasswords() {
         repository.hashPlainPasswords(passwords::encode);
@@ -39,6 +41,7 @@ public class IdentityService implements ApplicationRunner {
         return repository.find(userId);
     }
 
+    /** Регистрация: проверка почты и пароля, запись пользователя с ролью GUEST, выдача JWT. */
     public Api.AuthPayload register(String email, String password, String fullName, String phone) {
         if (email == null || !email.contains("@")) {
             throw new Failures.BadRequestException("Укажите почту");
@@ -56,6 +59,7 @@ public class IdentityService implements ApplicationRunner {
         return issue(id);
     }
 
+    /** Вход: пароль сравнивается с хешем, при успехе создаются JWT и сессия в Redis. */
     public Api.AuthPayload login(String email, String password) {
         IdentityRepository.Credential row = repository.credential(email);
         if (row == null || password == null || !passwords.matches(password, row.hash())) {
@@ -64,6 +68,7 @@ public class IdentityService implements ApplicationRunner {
         return issue(row.id());
     }
 
+    /** Защищённый запрос: подпись JWT и наличие сессии в Redis. Без сессии токен не принимается. */
     public Api.UserView verify(String token) {
         var claims = tokens.parse(token).getPayload();
         if (!sessions.active(claims.getId())) {
@@ -72,10 +77,12 @@ public class IdentityService implements ApplicationRunner {
         return repository.find(Long.parseLong(claims.getSubject()));
     }
 
+    /** Выход удаляет сессию. Тот же JWT после этого больше не проходит verify. */
     public void logout(String token) {
         sessions.delete(tokens.parse(token).getPayload().getId());
     }
 
+    /** Общий шаг входа и регистрации: сессия в Redis, затем подписанный JWT с её идентификатором. */
     private Api.AuthPayload issue(long userId) {
         String jti = UUID.randomUUID().toString();
         sessions.save(jti, userId);

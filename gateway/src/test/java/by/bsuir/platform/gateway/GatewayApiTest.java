@@ -1,20 +1,14 @@
 package by.bsuir.platform.gateway;
 
-import by.bsuir.platform.identity.IdentityApplication;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.web.context.WebServerApplicationContext;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -27,33 +21,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration")
 @AutoConfigureMockMvc
+@ContextConfiguration(initializers = RunningPlatform.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class GatewayApiTest {
 
-    private static ConfigurableApplicationContext auth;
-
-    static {
-        SpringApplication application = new SpringApplication(IdentityApplication.class);
-        auth = application.run("--server.port=0");
-        int port = ((WebServerApplicationContext) auth).getWebServer().getPort();
-        System.setProperty("auth.service.url", "http://127.0.0.1:" + port);
-    }
-
-    @AfterAll
-    static void stopAuth() {
-        if (auth != null) {
-            auth.close();
-        }
-    }
-
     @Autowired
     MockMvc mvc;
-
-    @Autowired
-    @Qualifier("bookingJdbc")
-    JdbcTemplate bookingJdbc;
 
     private final ObjectMapper json = new ObjectMapper();
 
@@ -147,11 +122,7 @@ class GatewayApiTest {
                 .andExpect(jsonPath("$.data.payBooking.status").value("PAID"));
 
         String admin = token("admin@hotel.local", "admin");
-        mvc.perform(as("""
-                { occupancyAndRevenue(input: {hotelId: 1, from: "2026-07-06", to: "2026-07-07"}) { occupancy revenue } }
-                """, admin))
-                .andExpect(jsonPath("$.data.occupancyAndRevenue.occupancy").value(0.5))
-                .andExpect(jsonPath("$.data.occupancyAndRevenue.revenue").value(closeTo(200.0, 0.001)));
+        awaitPaidJuly(admin);
 
         mvc.perform(as("""
                 mutation { cancelBooking(input: {bookingId: 1}) { status } }
@@ -172,7 +143,7 @@ class GatewayApiTest {
     @Test
     void expiredHoldCancelsBookingAndFreesNights() throws Exception {
         String guest = token("guest@hotel.local", "guest");
-        bookingJdbc.update(
+        RunningPlatform.bookingJdbc().update(
                 "update booking.bookings set hold_until = ? where id = 1",
                 java.sql.Timestamp.valueOf(LocalDateTime.now().minusMinutes(5))
         );
@@ -234,6 +205,29 @@ class GatewayApiTest {
                 { quoteStay(input: {roomId: 2, checkIn: "2026-06-01", checkOut: "2026-06-03", guests: 2}) { total } }
                 """))
                 .andExpect(jsonPath("$.errors[0].message").value(containsString("занят")));
+    }
+
+    private void awaitPaidJuly(String admin) throws Exception {
+        String query = """
+                { occupancyAndRevenue(input: {hotelId: 1, from: "2026-07-06", to: "2026-07-07"}) { occupancy revenue } }
+                """;
+        String last = "";
+        for (int attempt = 0; attempt < 40; attempt++) {
+            last = mvc.perform(as(query, admin)).andReturn().getResponse().getContentAsString();
+            try {
+                Object revenue = JsonPath.read(last, "$.data.occupancyAndRevenue.revenue");
+                Object occupancy = JsonPath.read(last, "$.data.occupancyAndRevenue.occupancy");
+                if (revenue instanceof Number money && occupancy instanceof Number load
+                        && Math.abs(money.doubleValue() - 200.0) < 0.001
+                        && Math.abs(load.doubleValue() - 0.5) < 0.001) {
+                    return;
+                }
+            } catch (RuntimeException ignored) {
+                // Событие оплаты ещё не дошло до Analytics.
+            }
+            Thread.sleep(250);
+        }
+        throw new AssertionError(last);
     }
 
     private String token(String email, String password) throws Exception {

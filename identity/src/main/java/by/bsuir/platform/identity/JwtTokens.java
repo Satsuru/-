@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 
+/** Подпись и проверка JWT. Срок токена — 2 часа. Сессию этот класс не хранит. */
 @Component
 public class JwtTokens {
 

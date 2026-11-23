@@ -1,13 +1,17 @@
 package by.bsuir.platform.assistant;
 
 import by.bsuir.platform.contracts.Api;
+import by.bsuir.platform.contracts.BusEvent;
 import by.bsuir.platform.contracts.Failures;
+import by.bsuir.platform.contracts.Topics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,9 +21,12 @@ public class AssistantService implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AssistantService.class);
     private final JdbcTemplate jdbc;
+    private final ObjectProvider<KafkaTemplate<String, String>> kafka;
 
-    public AssistantService(@Qualifier("assistantJdbc") JdbcTemplate jdbc) {
+    public AssistantService(@Qualifier("assistantJdbc") JdbcTemplate jdbc,
+                            ObjectProvider<KafkaTemplate<String, String>> kafka) {
         this.jdbc = jdbc;
+        this.kafka = kafka;
     }
 
     public Api.DialogView ask(long userId, Long dialogId, String guestText, String answer, boolean escalated) {
@@ -43,7 +50,20 @@ public class AssistantService implements ApplicationRunner {
         }
         add(id, "GUEST", guestText);
         add(id, "ASSISTANT", answer);
-        return load(id);
+        Api.DialogView dialog = load(id);
+        if (escalated) {
+            publishEscalation(dialog.id());
+        }
+        return dialog;
+    }
+
+    private void publishEscalation(long dialogId) {
+        KafkaTemplate<String, String> template = kafka.getIfAvailable();
+        if (template == null) {
+            return;
+        }
+        BusEvent event = new BusEvent(BusEvent.ASSISTANT_ESCALATED, null, 2L, null, null, null, null, null, dialogId);
+        template.send(Topics.ASSISTANT_ESCALATED, Long.toString(dialogId), event.json());
     }
 
     private Api.DialogView load(long id) {

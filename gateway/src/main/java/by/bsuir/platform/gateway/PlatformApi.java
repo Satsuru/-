@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+// Сервисный слой Gateway: проверяет доступ и вызывает внутренние сервисы.
 @Service
 public class PlatformApi {
 
@@ -18,7 +19,6 @@ public class PlatformApi {
     private final Clients.CatalogClient catalog;
     private final Clients.PricingClient pricing;
     private final Clients.BookingClient booking;
-    private final Clients.PaymentClient payment;
     private final Clients.NotificationClient notification;
     private final Clients.AssistantClient assistant;
     private final Clients.AnalyticsClient analytics;
@@ -28,7 +28,6 @@ public class PlatformApi {
             Clients.CatalogClient catalog,
             Clients.PricingClient pricing,
             Clients.BookingClient booking,
-            Clients.PaymentClient payment,
             Clients.NotificationClient notification,
             Clients.AssistantClient assistant,
             Clients.AnalyticsClient analytics
@@ -37,7 +36,6 @@ public class PlatformApi {
         this.catalog = catalog;
         this.pricing = pricing;
         this.booking = booking;
-        this.payment = payment;
         this.notification = notification;
         this.assistant = assistant;
         this.analytics = analytics;
@@ -100,6 +98,7 @@ public class PlatformApi {
     }
 
     public boolean logout() {
+        // Без действующей сессии выход недоступен.
         CurrentUser.require();
         identity.logout(CurrentUser.token());
         return true;
@@ -107,29 +106,14 @@ public class PlatformApi {
 
     public Api.BookingView createBooking(Api.CreateBookingInput input) {
         sweep();
+        // Идентификатор гостя берётся из проверенного токена и передаётся в сервис бронирования.
         long userId = CurrentUser.require();
         if (input.roomId() == null) {
             throw new Failures.BadRequestException("Укажите номер");
         }
         Stay stay = stay(input.checkIn(), input.checkOut(), input.guests());
-        Api.RoomCard room = catalog.getRoom(input.roomId(), stay.checkIn(), stay.checkOut())
-                .orElseThrow(() -> new Failures.NotFoundException("Номер не найден"));
-        if (stay.guests() > room.capacity()) {
-            throw new Failures.BadRequestException("В номере недостаточно мест");
-        }
-        Api.PriceQuote price = pricing.calculate(room.hotelId(), room.basePrice(), room.occupancyRatio(),
-                stay.checkIn(), stay.checkOut(), stay.guests());
-        Api.BookingView created = booking.create(userId, room.roomId(), room.hotelId(), stay.checkIn(), stay.checkOut(),
-                stay.guests(), room.basePrice(), price);
-        try {
-            catalog.hold(room.roomId(), stay.checkIn(), stay.checkOut(), created.id());
-        } catch (RuntimeException ex) {
-            booking.abort(created.id());
-            throw ex;
-        }
-        notification.add(userId, "BOOKING_CREATED", "Бронь " + created.id() + " создана, номер удерживается до оплаты");
-        analytics.addSale(room.hotelId(), "CREATED", price.total(), stay.checkIn());
-        return created;
+        // Удержание номера, откат и событие Kafka выполняет сервис бронирования.
+        return booking.create(userId, input.roomId(), stay.checkIn(), stay.checkOut(), stay.guests());
     }
 
     public Api.BookingView payBooking(Api.PayInput input) {
@@ -140,20 +124,7 @@ public class PlatformApi {
         if (input.method() == null || input.method().isBlank()) {
             throw new Failures.BadRequestException("Укажите способ оплаты");
         }
-        Api.BookingView paid;
-        try {
-            paid = booking.pay(userId, input.bookingId());
-        } catch (Failures.HoldExpiredException ex) {
-            catalog.release(ex.bookingId());
-            throw ex;
-        }
-        payment.complete(paid.id(), userId, java.math.BigDecimal.valueOf(paid.totalPrice()), input.method());
-        catalog.confirmSold(paid.id());
-        notification.add(userId, "PAYMENT_COMPLETED", "Бронь " + paid.id() + " оплачена");
-        LocalDate checkIn = LocalDate.parse(paid.checkIn());
-        analytics.addSale(paid.hotelId(), "PAID", java.math.BigDecimal.valueOf(paid.totalPrice()), checkIn);
-        analytics.recordSoldNights(paid.hotelId(), checkIn, LocalDate.parse(paid.checkOut()), catalog.activeRooms(paid.hotelId()));
-        return paid;
+        return booking.pay(userId, input.bookingId(), input.method());
     }
 
     public Api.BookingView cancelBooking(Api.CancelInput input) {
@@ -161,11 +132,9 @@ public class PlatformApi {
         if (input.bookingId() == null) {
             throw new Failures.BadRequestException("Укажите бронь");
         }
+        // Гость отменяет только свою CREATED. Сотрудник и администратор — любую неоплаченную.
         boolean staff = CurrentUser.hasRole("WORKER") || CurrentUser.hasRole("ADMIN");
-        Api.BookingView cancelled = booking.cancel(userId, staff, input.bookingId());
-        catalog.release(cancelled.id());
-        notification.add(userId, "BOOKING_CANCELLED", "Бронь " + cancelled.id() + " отменена, номер снова свободен");
-        return cancelled;
+        return booking.cancel(userId, staff, input.bookingId());
     }
 
     public Api.DialogView askAssistant(Api.AskInput input) {
@@ -178,11 +147,7 @@ public class PlatformApi {
                 ? "Передала вопрос сотруднику."
                 : "По правилам отеля ночь считается как база × загрузка × сезон × день недели × спрос × гости. Броней у вас: "
                 + booking.stats(userId).total() + ".";
-        Api.DialogView dialog = assistant.ask(userId, input.dialogId(), input.text().trim(), answer, escalated);
-        if (escalated) {
-            notification.add(2, "ASSISTANT_ESCALATED", "Гость ждёт сотрудника, диалог " + dialog.id());
-        }
-        return dialog;
+        return assistant.ask(userId, input.dialogId(), input.text().trim(), answer, escalated);
     }
 
     public List<Api.BookingView> myBookings(Api.BookingFilter filter) {
@@ -207,6 +172,7 @@ public class PlatformApi {
 
     public Api.OccupancyRevenueView occupancyAndRevenue(Api.PeriodInput input) {
         CurrentUser.require();
+        // Сводка загрузки и выручки только у администратора.
         if (!CurrentUser.hasRole("ADMIN")) {
             throw new Failures.ForbiddenException("Загрузка и выручка доступны администратору");
         }
@@ -225,9 +191,7 @@ public class PlatformApi {
     }
 
     private void sweep() {
-        for (Long id : booking.expireOverdue()) {
-            catalog.release(id);
-        }
+        booking.sweep();
     }
 
     private Api.RoomOfferView offer(Api.RoomCard room, Stay stay) {

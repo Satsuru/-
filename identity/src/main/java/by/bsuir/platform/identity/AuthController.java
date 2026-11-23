@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 
+// REST API сервиса авторизации. Основная логика находится в IdentityService.
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -24,31 +25,37 @@ public class AuthController {
         this.identity = identity;
     }
 
+    // Регистрация нового пользователя
     @PostMapping("/register")
     public Api.AuthPayload register(@RequestBody RegisterRequest body) {
         return identity.register(body.email(), body.password(), body.fullName(), body.phone());
     }
 
+    // Проверка логина и пароля, выдача JWT
     @PostMapping("/login")
     public Api.AuthPayload login(@RequestBody LoginRequest body) {
         return identity.login(body.email(), body.password());
     }
 
+    // Проверка токена и активной сессии
     @PostMapping("/verify")
     public Api.UserView verify(@RequestBody TokenRequest body) {
         return identity.verify(body.token());
     }
 
+    // Удаление сессии из Redis
     @PostMapping("/logout")
     public void logout(@RequestBody TokenRequest body) {
         identity.logout(body.token());
     }
 
+    // Получение пользователя и его ролей
     @GetMapping("/users/{id}")
     public Api.UserView user(@PathVariable long id) {
         return identity.me(id);
     }
 
+    // Тела запросов
     public record RegisterRequest(String email, String password, String fullName, String phone) {
     }
 
@@ -58,6 +65,7 @@ public class AuthController {
     public record TokenRequest(String token) {
     }
 
+    // Обработка ошибок сервиса
     @RestControllerAdvice
     static class Errors {
 
